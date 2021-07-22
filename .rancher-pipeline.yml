@@ -2,7 +2,7 @@ stages:
 - name: main
   steps:
   - applyYamlConfig:
-      path: ./kubernetes/nginx.yml
+      path: ./nginx.yaml
   when:
     branch:
       include:
