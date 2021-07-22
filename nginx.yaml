@@ -10,7 +10,7 @@ spec:               #The spec part defines the characteristics that a given Kube
                     # It is the cluster’s responsibility to update the status of the object to always match the desired configuration.
                     # In our example, the spec instructs that this object (the pod) should have one container with some attributes.
   containers:
-  - name: webserver  # The name that this container will have.
+  - name: webservertestpipelin  # The name that this container will have.
     image: nginx:latest # The image on which it is based.
     ports:               # The port(s) that will be open.
     - containerPort: 80
