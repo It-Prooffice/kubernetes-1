@@ -1,0 +1,11 @@
+stages:
+- name: main
+  steps:
+  - applyYamlConfig:
+      path: ./kubernetes/nginx.yml
+  when:
+    branch:
+      include:
+      - main
+timeout: 60
+notification: {}
