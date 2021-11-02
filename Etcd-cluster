@@ -166,14 +166,22 @@ EOF
 }
 
 
-### Assign endpoints and veriy cluster is running
+### Assign endpoints and verify cluster is running
 export ETCDCTL_API=3
 HOST_1=192.168.10.220
 HOST_2=192.168.10.221
 HOST_3=192.168.10.222
 ENDPOINTS=$HOST_1:2379,$HOST_2:2379,$HOST_3:2379
 
+
+### Cluster status
 sudo etcdctl --write-out=table --endpoints=$ENDPOINTS endpoint status \
+--cacert=/etc/etcd/ca.pem \
+--cert=/etc/etcd/etcd.pem \
+--key=/etc/etcd/etcd-key.pem
+
+### Cluster Healtcheck
+sudo etcdctl --write-out=table --endpoints=$ENDPOINTS endpoint health \
 --cacert=/etc/etcd/ca.pem \
 --cert=/etc/etcd/etcd.pem \
 --key=/etc/etcd/etcd-key.pem
