@@ -1,0 +1,166 @@
+Externel ETCD
+---
+
+### Create self signed Ca 
+{
+
+cat > ca-config.json <<EOF
+{
+    "signing": {
+        "default": {
+            "expiry": "8760h"
+        },
+        "profiles": {
+            "etcd": {
+                "expiry": "8760h",
+                "usages": ["signing","key encipherment","server auth","client auth"]
+            }
+        }
+    }
+}
+EOF
+
+cat > ca-csr.json <<EOF
+{
+  "CN": "ETCD",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "DK",
+      "L": "Denmark",
+      "O": "Kubernetes",
+      "OU": "ETCD",
+      "ST": "Aarhus"
+    }
+  ]
+}
+EOF
+
+cfssl gencert -initca ca-csr.json | cfssljson -bare ca
+
+}
+
+### Sign Certs for nodes
+
+{
+#Assign ip and hostnames
+$ CERT_HOSTNAME=192.168.10.220,etcd01,192.168.10.221,etcd02,192.168.10.222,etcd03,127.0.0.1,localhost
+
+ETCD1_IP="192.168.10.220"
+ETCD2_IP="192.168.10.221"
+ETCD3_IP="192.168.10.222"
+
+{
+
+cat > etcd-csr.json <<EOF
+{
+  "CN": "ETCD",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "DK",
+      "L": "Denmark",
+      "O": "Kubernetes",
+      "OU": "ETCD",
+      "ST": "Aarhus"
+    }
+  ]
+}
+EOF
+
+cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -hostname=${CERT_HOSTNAME} \
+  -profile=etcd \
+  etcd-csr.json | cfssljson -bare etcd
+
+}
+
+
+### Copy Certs to all nodes
+{
+
+declare -a NODES=(192.168.10.220 192.168.10.221 192.168.10.222)
+
+for node in ${NODES[@]}; do
+## Change ETCDADMIN to your users on your etcd nodes
+  scp ca.pem etcd.pem etcd-key.pem etcdadmin@$node: 
+done
+
+}
+
+### Create Directory for certs keep em safe if production enviroment 
+
+{
+  mkdir -p /etc/etcd/
+  mv ca.pem etcd.pem etcd-key.pem /etc/etcd/
+}
+
+
+
+###Define variable ETCD_HOSTNAME on every host
+
+{
+### Node_ip change to whatever node you apply this to
+NODE_IP="192.168.10.221"
+
+ETCD1_IP="192.168.10.220"
+ETCD2_IP="192.168.10.221"
+ETCD3_IP="192.168.10.222"
+
+
+cat <<EOF >/etc/systemd/system/etcd.service
+[Unit]
+Description=etcd
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/etcd \\
+  --name $ETCD_NAME \\
+  --data-dir=/var/lib/etcd \\
+  --cert-file=/etc/etcd/etcd.pem \\
+  --key-file=/etc/etcd/etcd-key.pem \\
+  --peer-cert-file=/etc/etcd/etcd.pem \\
+  --peer-key-file=/etc/etcd/etcd-key.pem \\
+  --trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-client-cert-auth \\
+  --client-cert-auth \\
+  --initial-advertise-peer-urls https://${NODE_IP}:2380 \\
+  --listen-peer-urls https://${NODE_IP}:2380 \\
+  --advertise-client-urls https://${NODE_IP}:2379 \\
+  --listen-client-urls https://${NODE_IP}:2379,https://127.0.0.1:2379 \\
+  --initial-cluster-token etcd-cluster-1 \\
+  --initial-cluster etcd01=https://${ETCD1_IP}:2380,etcd02=https://${ETCD2_IP}:2380,etcd03=https://${ETCD3_IP}:2380 \\
+  --initial-cluster-state new
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+}
+
+
+### Assign endpoints and veriy cluster is running
+export ETCDCTL_API=3
+HOST_1=192.168.10.220
+HOST_2=192.168.10.221
+HOST_3=192.168.10.222
+ENDPOINTS=$HOST_1:2379,$HOST_2:2379,$HOST_3:2379
+
+sudo etcdctl --write-out=table --endpoints=$ENDPOINTS endpoint status \
+--cacert=/etc/etcd/ca.pem \
+--cert=/etc/etcd/etcd.pem \
+--key=/etc/etcd/etcd-key.pem
+rm -r /var/lib/etcd/member/
+systemctl stop etcd
