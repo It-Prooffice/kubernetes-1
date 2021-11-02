@@ -177,5 +177,3 @@ sudo etcdctl --write-out=table --endpoints=$ENDPOINTS endpoint status \
 --cacert=/etc/etcd/ca.pem \
 --cert=/etc/etcd/etcd.pem \
 --key=/etc/etcd/etcd-key.pem
-rm -r /var/lib/etcd/member/
-systemctl stop etcd
